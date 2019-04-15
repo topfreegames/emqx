@@ -127,6 +127,7 @@
 
 -record(plugin, {
           name           :: atom(),
+          module         :: module(),
           version        :: string(),
           dir            :: string(),
           descr          :: string(),

@@ -142,12 +142,9 @@ stop_plugins(Names) ->
 -spec(list() -> [emqx_types:plugin()]).
 list() ->
     StartedApps = names(started_app),
-    lists:map(fun({Name, _, _}) ->
-        Plugin = plugin(Name),
-        case lists:member(Name, StartedApps) of
-            true  -> Plugin#plugin{active = true};
-            false -> Plugin
-        end
+    lists:map(fun({AppName, _Module, [CbkMod]}) ->
+        Plugin = plugin(AppName),
+        Plugin#plugin{active = lists:member(AppName, StartedApps), module = CbkMod}
     end, lists:sort(ekka_boot:all_module_attributes(emqx_plugin))).
 
 plugin(AppName) ->
@@ -176,35 +173,10 @@ load(PluginName) when is_atom(PluginName) ->
             end
     end.
 
-load_plugin(#plugin{name = Name}, Persistent) ->
-    case load_app(Name) of
-        ok ->
-            start_app(Name, fun(App) -> plugin_loaded(App, Persistent) end);
-        {error, Error} ->
-            {error, Error}
-    end.
-
-load_app(App) ->
-    case application:load(App) of
-        ok ->
-            ok;
-        {error, {already_loaded, App}} ->
-            ok;
-        {error, Error} ->
-            {error, Error}
-    end.
-
-start_app(App, SuccFun) ->
-    case application:ensure_all_started(App) of
-        {ok, Started} ->
-            ?LOG(info, "[Plugins] Started plugins: ~p", [Started]),
-            ?LOG(info, "[Plugins] Load plugin ~s successfully", [App]),
-            SuccFun(App),
-            {ok, Started};
-        {error, {ErrApp, Reason}} ->
-            ?LOG(error, "[Plugins] Load plugin ~s failed, cannot start plugin ~s for ~p", [App, ErrApp, Reason]),
-            {error, {ErrApp, Reason}}
-    end.
+load_plugin(#plugin{name = Name, module = Mod}, Persistent) ->
+    Mod:load(),
+    ?LOG(info, "[Plugins] Load plugin ~s successfully", [Name]),
+    plugin_loaded(Name, Persistent).
 
 find_plugin(Name) ->
     find_plugin(Name, list()).
